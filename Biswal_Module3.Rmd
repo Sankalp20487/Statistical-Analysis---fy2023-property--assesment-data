@@ -1,0 +1,425 @@
+---
+title: "Module 3"
+author: "Sankalp Biswal"
+date: "2023-11-26"
+output: html_document
+---
+
+## 1.Importing Libraries
+```{r}
+library(pacman)
+library(tidyverse)
+library(janitor)
+library(knitr)
+
+```
+
+## 2.Importing dataset
+
+* Selecting variables of interest
+```{r}
+property_dataset <- read.csv("fy2023-property-assessment-data.csv")
+
+property_subset <- subset(property_dataset,select = c(CITY,LU,LU_DESC,BLDG_TYPE,LAND_SF,GROSS_AREA,BLDG_VALUE,LAND_VALUE,TOTAL_VALUE,GROSS_TAX,YR_BUILT,YR_REMODEL,ROOF_STRUCTURE,BED_RMS,FULL_BTH,KITCHENS,TT_RMS,RES_FLOOR,OVERALL_COND,HEAT_TYPE,AC_TYPE,PROP_VIEW,NUM_PARKING,FIREPLACES,ZIP_CODE))
+```
+
+## 3. Data Cleaning
+
+* We'll clean the data using `IQR()` and replace the out of bound values by 'NA' and then impute 'NA' values by **Median** so that we can preserve the original sample size.
+
+```{r}
+clean_numeric_columns <- function(x) {
+  # Remove outliers based on IQR
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr_value <- IQR(x, na.rm = TRUE)
+  
+  lower_bound <- q1 - 1.5 * iqr_value
+  upper_bound <- q3 + 1.5 * iqr_value
+  
+  x_outliers_removed <- ifelse(x < lower_bound | x > upper_bound, NA, x)
+  
+  # Impute missing values with the median
+  x_cleaned <- ifelse(is.na(x_outliers_removed), median(x, na.rm = TRUE), x_outliers_removed)
+  
+  return(x_cleaned)
+}
+
+# Clean all numeric columns in the dataset
+property_subset_clean <- property_subset %>%
+  mutate(across(where(is.numeric), clean_numeric_columns))
+
+# Remove rows with any NA values after cleaning
+property_subset_clean <- na.omit(property_subset_clean)
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(CITY = ifelse(CITY == "" | is.na(CITY), "Unknown", CITY))
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(OVERALL_COND = ifelse(OVERALL_COND == "" | is.na(OVERALL_COND), "Unknown", OVERALL_COND))
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(PROP_VIEW = ifelse(PROP_VIEW == "" | is.na(PROP_VIEW), "Unknown", PROP_VIEW))
+
+property_subset_clean <- property_subset_clean %>%
+  mutate(AC_TYPE = ifelse(AC_TYPE == "" | is.na(AC_TYPE), "Unknown", AC_TYPE))
+```
+------------------------
+
+## 4. Tests
+
+### Overview
+
+* There are 2 parts namely - **PART-1 and PART-2**.
+* We'll be conducting one sample t-test on two variables - **LAND_SF** and **GROSS_TAX** for **PART-1** and **PART-2** respectively.
+* PART-1 : We'll conduct t-test on 3 samples with varying size for the variable **LAND_SF** and make a decision using t-value for each of the sample.
+* PART-2 : We'll conduct t-test on 3 samples with varying size for the variable **GROSS_TAX** and make a decision using p-value for each of the sample. 
+
+------------------------
+
+### **PART-1**
+
+### One sample t-test for LAND_SF i.e land area in sqft using t- statistic
+
+* We'll take 3 samples of different sizes such as 100, 1000, and 10000
+* We'll conduct t-test for the 3 samples and analyse if the decision differs.
+
+#### a. Calculation of True Population Mean
+
+* Since the sample that we are testing is not small, we don't need to check for normality
+
+```{r}
+# Loading the required variable for test in a separate variable
+
+land_sf <- property_subset_clean$LAND_SF
+
+# Calculating the true value of mean from population
+
+mean_land_sf <- mean(land_sf)
+
+cat("Population mean =",mean_land_sf)
+```
+
+#### b. Hypothesis test for Sample 1 (Land sf)
+
+1. Null Hypothesis (H0): The mean land square footage is equal to **2689.257**
+2. Alternative Hypothesis (H1): The mean land square footage is not equal to **2689.257**
+
+* Now we'll create a sample and check for the above hypothesis using `t.test()`.
+
+```{r}
+
+set.seed(123)
+
+# Create a random sample of size 100 
+
+sample_size1 <- 100
+
+random_sample1 <- sample(land_sf, size = sample_size1, replace = TRUE)
+
+# Perform one-sample t-test
+t_test_result_1 <- t.test(random_sample1, mu = mean_land_sf)
+
+# Display the results
+print(t_test_result_1)
+
+# Calculation of t(critical)
+confidence_level <- 0.95  
+degrees_of_freedom_1 <- 99
+
+# Calculate the critical t-value
+t_critical_1 <- qt((1 + confidence_level) / 2, df = degrees_of_freedom_1)
+
+# Print the result
+
+cat("t(critical) for 95% confidence interval and 99 degree of freedom = ",t_critical_1)
+
+```
+#### c. Interpretation
+
+* Criterias for rejecting null hypothesis using **t- value**
+
+1. If t > t(critical), Reject Null Hypothesis
+2. If t < t(critical), Fail to Reject Null Hypothesis
+
+* t-value: We got t-value = 1.12 and t(critical) = 1.984, t < t(critical), therefore we **fail to reject null hypothesis**.
+* Confidence interval: The confidence interval provides a range of values within which we can be 95% confident the true population mean lies. Our 95 percent confidence interval is **2477.236 - 3450.824**. This further strengthens our conclusion of **failing to reject Null hypothesis**
+
+#### d. Decision
+
+* At a 5% significance level or a 95 percent confidence level, we **do not have enough evidence to claim that the sample mean is different from the hypothesized value of 2689.257**. The confidence interval further supports this conclusion, encompassing the hypothesized value.
+
+------------------------
+
+#### a. Hypothesis test for Sample 2 (Land sf)
+
+1. Null Hypothesis (H0): The mean land square footage is equal to 2689.257
+2. Alternative Hypothesis (H1): The mean land square footage is not equal to 2689.257
+
+* Now we'll create a sample and check for the above hypothesis using `t.test()`.
+
+```{r}
+
+set.seed(123)
+
+# Create a random sample of size 1000 
+
+sample_size2 <- 1000
+
+random_sample2 <- sample(land_sf, size = sample_size2, replace = TRUE)
+
+# Perform one-sample t-test
+t_test_result_2 <- t.test(random_sample2, mu = mean_land_sf)
+
+# Display the results
+print(t_test_result_2)
+
+# Calculation of t(critical)
+confidence_level <- 0.95  
+degrees_of_freedom_2 <- 999  
+
+# Calculate the critical t-value
+t_critical_2 <- qt((1 + confidence_level) / 2, df = degrees_of_freedom_2)
+
+# Print the result
+
+cat("t(critical) for 95% confidence interval and 999 degree of freedom = ",t_critical_2)
+
+```
+#### b. Interpretation
+
+* Criterias for rejecting null hypothesis using **t- value**
+
+1. If t > t(critical), Reject Null Hypothesis
+2. If t < t(critical), Fail to Reject Null Hypothesis
+
+* t-value: We got t-value = 0.145 and t(critical) = 1.984, t < t(critical), therefore we **fail to reject null hypothesis**.
+* Confidence interval: The confidence interval provides a range of values within which we can be 95% confident the true population mean lies. Our 95 percent confidence interval is **2562.911 - 2835.853**. This further strengthens our conclusion of **failing to reject Null hypothesis**
+
+#### c. Decision
+
+* At a 5% significance level or a 95 percent confidence level, we **do not have enough evidence to claim that the sample mean is different from the hypothesized value of 2689.257**. The confidence interval further supports this conclusion, encompassing the hypothesized value.
+
+------------------------
+
+#### a. Hypothesis test for Sample 3 (Land sf)
+
+1. Null Hypothesis (H0): The mean land square footage is equal to 2689.257
+2. Alternative Hypothesis (H1): The mean land square footage is not equal to 2689.257
+
+* Now we'll create a sample and check for the above hypothesis using `t.test()`.
+
+```{r}
+
+set.seed(123)
+
+# Create a random sample of size 10000 
+
+sample_size3 <- 10000
+
+random_sample3 <- sample(land_sf, size = sample_size3, replace = TRUE)
+
+# Perform one-sample t-test
+t_test_result_3 <- t.test(random_sample3, mu = mean_land_sf)
+
+# Display the results
+print(t_test_result_3)
+
+# Calculation of t(critical)
+confidence_level <- 0.95  
+degrees_of_freedom_3 <- 9999  
+
+# Calculate the critical t-value
+t_critical_3 <- qt((1 + confidence_level) / 2, df = degrees_of_freedom_3)
+
+# Print the result
+
+cat("t(critical) for 95% confidence interval and 9999 degree of freedom = ",t_critical_3)
+
+```
+#### b. Interpretation
+
+* Critereias for rejecting null hypothesis using t- value
+
+1. If t > t(critical), Reject Null Hypothesis
+2. If t < t(critical), Fail to Reject Null Hypothesis
+
+* t-value: We got t-value = 1.21 and t(critical) = 1.960, t < t(critical), therefore we **fail to reject null hypothesis**.
+* Confidence interval: The confidence interval provides a range of values within which we can be 95% confident the true population mean lies. Our 95   percent confidence interval is **2673.173 - 2758.053**. This further strengthens our conclusion of **failing to reject Null hypothesis**
+
+#### c. Decision
+
+* At a 5% significance level or a 95 percent confidence level, we **do not have enough evidence to claim that the sample mean is different from the hypothesized value of 2689.257**. The confidence interval further supports this conclusion, encompassing the hypothesized value.
+
+------------------------
+
+### Final conclusion of one sample t-test for LAND_SF
+
+* **We don't have enough evidence to reject out null hypothesis** for any of the 3 samples that we took above. **Therefore, sample mean for the 3 samples is not different from our true population mean.**
+* We got the following confidence intervals - **2477.236 - 3450.824 for sample 1**,**2562.911 - 2835.853 for sample 2**, and **2673.173 - 2758.053 for sample 3**. We notice that the confidence interval got narrower as we increased the sample size because increasing the sample size reduces the variability of the sample mean and leads to a more accurate estimation of the population parameter, resulting in a **narrower confidence interval**. 
+
+------------------------
+
+### **PART-2**
+
+### One sample t-test for GROSS TAX using p-value
+
+* We'll take 3 samples of different sizes such as 100, 1000, and 100000
+* We'll conduct t-test for the 3 samples and analyse if the decision differs.
+
+#### a. Calculation of True Population Mean
+
+* Since the sample that we are testing is not small, we don't need to check for normality
+
+```{r}
+# Loading the required variable for test in a separate variable
+
+gross_tax <- property_subset_clean$GROSS_TAX
+
+# Calculating the true value of mean from population
+
+mean_gross_tax <- mean(gross_tax)
+
+cat("Population mean =",mean_gross_tax)
+```
+
+#### b. Hypothesis test for Sample 1 (Gross Tax)
+
+1. Null Hypothesis (H0): The mean gross tax is equal to 6187.053
+2. Alternative Hypothesis (H1): The mean gross tax is not equal to 6187.053
+
+* Now we'll create a sample and check for the above hypothesis using `t.test()`.
+
+```{r}
+
+set.seed(123)
+
+# Create a random sample of size 100 
+
+sample_size1 <- 100
+
+random_sample1 <- sample(gross_tax, size = sample_size1, replace = TRUE)
+
+# Perform one-sample t-test
+t_test_result_1 <- t.test(random_sample1, mu = mean_gross_tax)
+
+# Display the results
+print(t_test_result_1)
+
+```
+#### b. Interpretation
+
+* Critereias for rejecting null hypothesi using p-value
+
+1. If p-value <= 0.05 (Standard significance value), Reject Null Hypothesis
+2. If p-value > 0.05 (Standard significance value), Fail to reject Null Hypothesis
+
+* p-value: We got p-value = 0.3854 i.e p > 0.05, therefore we **fail to reject null hypothesis**
+* Confidence interval: The confidence interval provides a range of values within which we can be 95% confident the true population mean lies. Our 95   percent confidence interval is **5078.313 - 6618.906**. This further strengthens our conclusion of **failing to reject Null hypothesis**
+
+#### c. Decision
+
+* At a 5% significance level or a 95 percent confidence level, we **do not have enough evidence to claim that the sample mean is different from the hypothesized value of 6187.053**. The confidence interval further supports this conclusion, encompassing the hypothesized value.
+
+------------------------
+
+#### a. Hypothesis test for Sample 2 (Gross Tax)
+
+1. Null Hypothesis (H0): The mean land square footage is equal to 6187.053
+2. Alternative Hypothesis (H1): The mean land square footage is not equal to 6187.053
+
+* Now we'll create a sample and check for the above hypothesis using `t.test()`.
+
+```{r}
+
+set.seed(123)
+
+# Create a random sample of size 1000 
+
+sample_size2 <- 1000
+
+random_sample2 <- sample(gross_tax, size = sample_size2, replace = TRUE)
+
+# Perform one-sample t-test
+t_test_result_2 <- t.test(random_sample2, mu = mean_gross_tax)
+
+# Display the results
+print(t_test_result_2)
+
+```
+#### b. Interpretation
+
+* Criterias for rejecting null hypothesis using p-value
+
+1. If p-value <= 0.05 (Standard significance value), Reject Null Hypothesis
+2. If p-value > 0.05 (Standard significance value), Fail to reject Null Hypothesis
+
+* p-value: We got p-value = 0.9202 i.e p > 0.05, therefore we **fail to reject null hypothesis**
+* Confidence interval: The confidence interval provides a range of values within which we can be 95% confident the true population mean lies. Our 95   percent confidence interval is **5925.052 - 6423.594**. This further strengthens our conclusion of **failing to reject Null hypothesis**
+
+#### c. Decision
+
+* At a 5% significance level or a 95 percent confidence level, we **do not have enough evidence to claim that the sample mean is different from the hypothesized value of 6187.053**. The confidence interval further supports this conclusion, encompassing the hypothesized value.
+
+------------------------
+
+#### a. Hypothesis test for Sample 3 (Gross Tax)
+
+1. Null Hypothesis (H0): The mean land square footage is equal to 2689.257
+2. Alternative Hypothesis (H1): The mean land square footage is not equal to 2689.257
+
+* Now we'll create a sample and check for the above hypothesis using `t.test()`.
+
+```{r}
+
+set.seed(123)
+
+# Create a random sample of size 100000 
+
+sample_size3 <- 100000
+
+random_sample3 <- sample(gross_tax, size = sample_size3, replace = TRUE)
+
+# Perform one-sample t-test
+t_test_result_3 <- t.test(random_sample3, mu = mean_gross_tax)
+
+# Display the results
+print(t_test_result_3)
+
+```
+#### b. Interpretation
+
+* Criterias for rejecting null hypothesis using p-value
+
+1. If p-value <= 0.05 (Standard significance value), Reject Null Hypothesis
+2. If p-value > 0.05 (Standard significance value), Fail to reject Null Hypothesis
+
+* p-value: We got p-value = 0.9744 i.e p > 0.05, therefore we **fail to reject null hypothesis**
+* Confidence interval: The confidence interval provides a range of values within which we can be 95% confident the true population mean lies. Our 95   percent confidence interval is **6162.455 - 6212.482**. This further strengthens our conclusion of **failing to reject Null hypothesis**
+
+#### c. Decision
+
+* At a 5% significance level or a 95 percent confidence level, we **do not have enough evidence to claim that the sample mean is different from the hypothesized value of 6187.053**. The confidence interval further supports this conclusion, encompassing the hypothesized value.
+
+------------------------
+
+### Final conclusion of one sample t-test for GROSS_TAX
+
+* **We don't have enough evidence to reject out null hypothesis** for any of the 3 samples that we took above. **Therefore, the sample mean for the 3 samples are not different from the true population mean**
+* We got the following confidence intervals - **5078.313 - 6618.906 for sample 1**,**5925.052 - 6423.594 for sample 2**, and **6162.455 - 6212.482 for sample 3**. We notice that the confidence interval got narrower as we increased the sample size because increasing the sample size reduces the variability of the sample mean and leads to a more accurate estimation of the population parameter, resulting in a **narrower confidence interval**. 
+
+-------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
